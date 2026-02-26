@@ -1,23 +1,25 @@
 # GenAI Lyric-to-Chord Generator
 
 ## Description
-GenAI Lyric-to-Chord Generator is a web app that converts raw song lyrics into practical chord suggestions.
-It helps songwriters and learners quickly get a playable harmonic structure instead of manually mapping chords line by line.
-The app analyzes lyrical context, proposes a song-level progression, and returns line-wise chord guidance.
-It also supports structured JSON export for reuse in other music workflows.
+This project converts raw song lyrics into structured chord suggestions in a Streamlit web app.
+It is designed to help songwriters quickly move from words to a playable harmonic sketch.
+The app uses a free sentiment model (DistilBERT) to estimate song mood and then applies music-theory rules to build progressions and line-level chord recommendations.
+Outputs can be exported as JSON and plain text for reuse in other tools.
 
 ## Features
 - Paste lyrics and generate chord suggestions in one click
+- Mood classification using a free Hugging Face DistilBERT model
 - Song-level output: mood, key, tempo, and time signature
-- Section-level chord progression (verse, chorus, bridge when available)
-- Line-by-line chord suggestions aligned with lyrics
-- Download outputs as JSON and plain text
-- Input validation, truncation guardrails, and error handling
+- Section-level progression (verse, chorus, bridge when available)
+- Line-by-line chords aligned with each lyric line
+- Download output as JSON or chorded text
+- Input validation and truncation guardrails
 
 ## Tech Stack
 - Python 3.11+
 - Streamlit
-- OpenAI API
+- Hugging Face Transformers (DistilBERT sentiment model)
+- PyTorch
 - Pydantic
 - Pytest
 - python-dotenv
@@ -40,14 +42,13 @@ source .venv/bin/activate
 ```bash
 pip install -r requirements.txt
 ```
-5. Configure environment variables:
+5. (Optional) Add environment config:
 ```bash
 cp .env.example .env
 ```
-Then set `OPENAI_API_KEY` in `.env`.
 
 ## Usage
-Run the Streamlit app:
+Run the app:
 ```bash
 streamlit run app.py
 ```
@@ -56,6 +57,10 @@ Run tests:
 ```bash
 pytest
 ```
+
+Notes:
+- No paid API key is required.
+- On first run, the sentiment model downloads automatically and may take extra time.
 
 ## Project Structure
 ```text
@@ -82,9 +87,9 @@ GenAI-Lyric-to-Chord-Generator/
 ### Sample JSON Output
 ```json
 {
-  "mood": "hopeful",
+  "mood": "uplifting",
   "key": "C major",
-  "tempo_bpm": 96,
+  "tempo_bpm": 112,
   "time_signature": "4/4",
   "progression": {
     "verse": ["C", "G", "Am", "F"],
@@ -94,18 +99,22 @@ GenAI-Lyric-to-Chord-Generator/
     {"line_number": 1, "lyric": "I walked through the midnight city lights", "chords": ["C", "G"]},
     {"line_number": 2, "lyric": "Trying to make peace with my restless mind", "chords": ["Am", "F"]}
   ],
-  "notes": "Use light down-up strumming in verse and fuller voicings in chorus."
+  "notes": "Keep strumming bright and add more rhythmic drive in the chorus."
 }
 ```
 
 ### UI Screenshot
+Add your latest Streamlit app screenshot here.
 
 ## Future Improvements
-- Add PDF or MusicXML lead-sheet export
-- Add genre-specific chord style presets
-- Add optional chord complexity controls (beginner/intermediate/advanced)
-- Add song section tagging in the UI
-- Add history and saved project support
+- Add lead-sheet PDF or MusicXML export
+- Add chord difficulty modes (beginner, intermediate, advanced)
+- Add section tagging in UI (verse, pre-chorus, chorus, bridge)
+- Add support for alternate tunings and capo suggestions
+- Add save/load project history
 
 ## Contributing
-Contributions are welcome. For major changes, please open an issue first to discuss the proposed update.
+Pull requests are welcome. For major changes, please open an issue first to discuss the update.
+
+## License
+No license file is currently included. Add a `LICENSE` file before public distribution.

@@ -6,7 +6,7 @@ import os
 import streamlit as st
 from dotenv import load_dotenv
 
-from lyric_to_chord.generator import DEFAULT_MODEL, generate_chord_plan
+from lyric_to_chord.generator import DEFAULT_MODE, DEFAULT_SENTIMENT_MODEL, generate_chord_plan
 from lyric_to_chord.models import ChordPlan, SongRequest
 from lyric_to_chord.preprocessing import MAX_INPUT_CHARS, MAX_INPUT_LINES, prepare_lyrics_with_limits
 
@@ -18,12 +18,12 @@ Every broken memory starts to fade
 When the morning sun calls out my name"""
 
 
-def get_api_key() -> str | None:
+def get_sentiment_model_name() -> str:
     try:
-        secrets_api_key = st.secrets.get("OPENAI_API_KEY")
+        secret_value = st.secrets.get("HF_SENTIMENT_MODEL")
     except Exception:
-        secrets_api_key = None
-    return secrets_api_key or os.getenv("OPENAI_API_KEY")
+        secret_value = None
+    return secret_value or os.getenv("HF_SENTIMENT_MODEL", DEFAULT_SENTIMENT_MODEL)
 
 
 def render_progression(plan: ChordPlan) -> None:
@@ -51,7 +51,7 @@ def main() -> None:
     st.set_page_config(page_title="Lyric-to-Chord Generator", page_icon="🎵", layout="wide")
 
     st.title("GenAI Lyric-to-Chord Generator")
-    st.caption("Paste lyrics, generate chord suggestions, and export structured JSON.")
+    st.caption("Paste lyrics, generate chord suggestions with free local models, and export structured JSON.")
 
     if "lyrics_input" not in st.session_state:
         st.session_state["lyrics_input"] = ""
@@ -62,7 +62,11 @@ def main() -> None:
         key_preference = st.text_input("Key preference (optional)", value="")
         tempo_enabled = st.toggle("Use tempo hint", value=False)
         tempo_hint = st.number_input("Tempo (BPM)", min_value=40, max_value=220, value=100, disabled=not tempo_enabled)
-        model_name = st.text_input("OpenAI model", value=os.getenv("OPENAI_MODEL", DEFAULT_MODEL))
+        sentiment_model = st.text_input(
+            "Sentiment model",
+            value=get_sentiment_model_name(),
+            help="Default uses DistilBERT from Hugging Face.",
+        )
         if st.button("Use sample lyrics"):
             st.session_state["lyrics_input"] = SAMPLE_LYRICS
 
@@ -93,18 +97,14 @@ def main() -> None:
             st.error(str(exc))
             st.stop()
 
-        api_key = get_api_key()
-        if not api_key:
-            st.error("Missing API key. Add OPENAI_API_KEY to your .env or Streamlit secrets.")
-            st.stop()
+        st.info("First run may take a little longer while the free model downloads.")
 
         with st.spinner("Generating chord plan..."):
             try:
                 chord_plan = generate_chord_plan(
                     request,
-                    api_key=api_key,
-                    model=model_name,
-                    max_retries=1,
+                    model=DEFAULT_MODE,
+                    sentiment_model=sentiment_model,
                 )
             except Exception as exc:
                 st.error(f"Generation failed: {exc}")

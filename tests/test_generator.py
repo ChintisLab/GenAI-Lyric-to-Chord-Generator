@@ -1,107 +1,43 @@
-from types import SimpleNamespace
-
-import pytest
-
-from lyric_to_chord.generator import generate_chord_plan
+from lyric_to_chord.generator import generate_chord_plan, parse_key_preference
 from lyric_to_chord.models import SongRequest
 
 
-def make_response(content: str) -> SimpleNamespace:
-    message = SimpleNamespace(content=content)
-    choice = SimpleNamespace(message=message)
-    return SimpleNamespace(choices=[choice])
+def positive_detector(_lyrics: str, _model: str) -> tuple[str, float]:
+    return "POSITIVE", 0.93
 
 
-class DummyCompletions:
-    def __init__(self, outputs: list[str]):
-        self.outputs = outputs
-        self.calls = 0
-
-    def create(self, **kwargs):  # noqa: ANN003
-        index = min(self.calls, len(self.outputs) - 1)
-        output = self.outputs[index]
-        self.calls += 1
-        return make_response(output)
+def negative_detector(_lyrics: str, _model: str) -> tuple[str, float]:
+    return "NEGATIVE", 0.9
 
 
-class DummyClient:
-    def __init__(self, outputs: list[str]):
-        completions = DummyCompletions(outputs)
-        self.chat = SimpleNamespace(completions=completions)
-        self.completions = completions
-
-
-VALID_JSON = """
-{
-  "mood": "hopeful",
-  "key": "C major",
-  "tempo_bpm": 96,
-  "time_signature": "4/4",
-  "progression": {
-    "verse": ["C", "G", "Am", "F"],
-    "chorus": ["F", "G", "C", "Am"]
-  },
-  "line_chords": [
-    {"line_number": 1, "lyric": "hello world", "chords": ["C", "G"]},
-    {"line_number": 2, "lyric": "sunlight comes", "chords": ["Am", "F"]}
-  ],
-  "notes": "Keep strumming simple."
-}
-""".strip()
-
-
-def test_generate_chord_plan_success() -> None:
-    client = DummyClient([VALID_JSON])
-    request = SongRequest(lyrics="hello world\nsunlight comes")
-
-    plan = generate_chord_plan(
-        request,
-        api_key="test-key",
-        client=client,  # type: ignore[arg-type]
+def test_generate_chord_plan_builds_line_level_output() -> None:
+    request = SongRequest(
+        lyrics="hello world\nsunlight comes\nwe keep moving\ninto the dawn",
+        genre="Pop",
     )
+    plan = generate_chord_plan(request, mood_detector=positive_detector)
 
-    assert plan.mood == "hopeful"
-    assert len(plan.line_chords) == 2
-    assert client.completions.calls == 1
+    assert plan.mood == "uplifting"
+    assert plan.key.endswith("major")
+    assert len(plan.line_chords) == 4
+    assert plan.line_chords[0].line_number == 1
+    assert len(plan.line_chords[0].chords) == 2
 
 
-def test_generate_chord_plan_retries_after_invalid_json() -> None:
-    invalid = "not-json"
-    client = DummyClient([invalid, VALID_JSON])
-    request = SongRequest(lyrics="hello world\nsunlight comes")
-
-    plan = generate_chord_plan(
-        request,
-        api_key="test-key",
-        client=client,  # type: ignore[arg-type]
-        max_retries=1,
+def test_generate_chord_plan_respects_key_and_tempo_hints() -> None:
+    request = SongRequest(
+        lyrics="night falls\nstreets are quiet",
+        key_preference="Dm",
+        tempo_hint=72,
+        genre="Ballad",
     )
+    plan = generate_chord_plan(request, mood_detector=negative_detector)
 
-    assert plan.key == "C major"
-    assert client.completions.calls == 2
+    assert plan.key == "D minor"
+    assert plan.tempo_bpm == 72
 
 
-def test_generate_chord_plan_raises_when_alignment_is_wrong() -> None:
-    bad_alignment_json = """
-    {
-      "mood": "hopeful",
-      "key": "C major",
-      "tempo_bpm": 96,
-      "time_signature": "4/4",
-      "progression": {"verse": ["C", "G", "Am", "F"]},
-      "line_chords": [
-        {"line_number": 1, "lyric": "hello world", "chords": ["C", "G"]}
-      ],
-      "notes": "Simple arrangement."
-    }
-    """.strip()
-    client = DummyClient([bad_alignment_json])
-    request = SongRequest(lyrics="hello world\nsunlight comes")
-
-    with pytest.raises(ValueError):
-        generate_chord_plan(
-            request,
-            api_key="test-key",
-            client=client,  # type: ignore[arg-type]
-            max_retries=0,
-        )
+def test_parse_key_preference_supports_shorthand() -> None:
+    assert parse_key_preference("Am") == ("A", "minor")
+    assert parse_key_preference("F# major") == ("F#", "major")
+    assert parse_key_preference("Bb min") == ("A#", "minor")
